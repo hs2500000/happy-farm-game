@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🌾 快乐农场 - 种菜偷菜小游戏</title>
+<style>
+  :root {
+    --soil: #8B6914;
+    --grass: #7EC850;
+    --sky: #87CEEB;
+    --sun: #FFD700;
+    --card: #FFF8E7;
+    --heart: #FF6B8A;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: linear-gradient(180deg, #87CEEB 0%, #B8E6FF 30%, #7EC850 30%, #6DB840 100%);
+    min-height: 100vh;
+    overflow-x: hidden;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+  }
+
+  /* === 天空装饰 === */
+  .sky-layer {
+    position: fixed; top:0; left:0; right:0; height:30vh;
+    pointer-events: none; z-index:0;
+  }
+  .sun {
+    position: absolute; top:15px; right:25px;
+    font-size: 50px;
+    animation: sunPulse 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 20px rgba(255,200,0,0.6));
+  }
+  @keyframes sunPulse {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+  }
+  .cloud {
+    position: absolute;
+    font-size: 40px;
+    opacity: 0.8;
+    animation: cloudDrift 20s linear infinite;
+  }
+  .cloud:nth-child(2) { top:40px; left:20%; animation-duration: 25s; animation-delay: -8s; }
+  .cloud:nth-child(3) { top:20px; left:55%; animation-duration: 22s; animation-delay: -15s; font-size:35px; }
+  @keyframes cloudDrift {
+    0% { transform: translateX(-80px); }
+    100% { transform: translateX(calc(100vw + 80px)); }
+  }
+
+  /* === 顶部信息栏 === */
+  .top-bar {
+    position: relative; z-index:10;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 16px;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(10px);
+    margin:8px 12px;
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  .user-info {
+    display:flex; align-items:center; gap:8px;
+  }
+  .avatar {
+    width:36px; height:36px; border-radius:50%;
+    background: linear-gradient(135deg, #FF6B8A, #FFA07A);
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px;
+  }
+  .resources {
+    display:flex; gap:12px;
+  }
+  .resource-item {
+    display:flex; align-items:center; gap:4px;
+    font-size:14px; font-weight:600;
+    background: #FFF8E7; padding:6px 12px;
+    border-radius: 20px;
+  }
+  .resource-item .icon { font-size:18px; }
+
+  /* === 标签切换 === */
+  .tab-bar {
+    position: relative; z-index:10;
+    display:flex; gap:8px;
+    padding:8px 16px;
+    justify-content:center;
+  }
+  .tab-btn {
+    padding:8px 20px; border-radius:20px; border:none;
+    font-size:14px; font-weight:600; cursor:pointer;
+    background: rgba(255,255,255,0.7);
+    color: #666;
+    transition: all 0.25s;
+  }
+  .tab-btn.active {
+    background: #FF6B8A; color:#fff;
+    box-shadow: 0 4px 12px rgba(255,107,138,0.4);
+  }
+  .tab-btn:active { transform: scale(0.95); }
+
+  /* === 农场主区域 === */
+  .farm-container {
+    position: relative; z-index:5;
+    padding:0 12px 120px;
+  }
+
+  /* 农场网格 */
+  .farm-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+  .plot {
+    aspect-ratio: 1;
+    background: linear-gradient(180deg, #C49A3C 0%, #8B6914 100%);
+    border-radius: 16px;
+    position: relative;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2), inset 0 2px 0 rgba(255,255,255,0.1);
+    transition: transform 0.15s;
+    display:flex; align-items:center; justify-content:center;
+    flex-direction:column;
+    gap:2px;
+  }
+  .plot:active { transform: scale(0.95); }
+  .plot.empty {
+    background: linear-gradient(180deg, #B8953A 0%, #7A5A10 100%);
+  }
+  .plot.watered::after {
+    content:''; position:absolute; inset:0;
+    background: rgba(100,180,255,0.2);
+    pointer-events:none;
+    border-radius:16px;
+  }
+
+  .plot-emoji { font-size:36px; position:relative; z-index:2; }
+  .plot-label {
+    font-size:11px; color:#fff; position:relative; z-index:2;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    text-align:center; line-height:1.2;
+  }
+  .plot-timer {
+    position:absolute; bottom:4px; right:6px;
+    font-size:10px; color:rgba(255,255,255,0.8);
+    background: rgba(0,0,0,0.3); padding:1px 6px;
+    border-radius:8px; z-index:2;
+  }
+
+  /* 进度条 */
+  .plot-progress {
+    position:absolute; bottom:0; left:0; right:0;
+    height:3px; background:rgba(255,255,255,0.3); z-index:2;
+  }
+  .plot-progress-bar {
+    height:100%; background:#4CAF50;
+    transition: width 1s linear;
+    border-radius:0 2px 2px 0;
+  }
+
+  /* 成熟闪光 */
+  .plot.ripe {
+    animation: ripeGlow 1s ease-in-out infinite;
+  }
+  @keyframes ripeGlow {
+    0%,100% { box-shadow: 0 4px 8px rgba(0,0,0,0.2), 0 0 10px rgba(255,215,0,0.3); }
+    50% { box-shadow: 0 4px 8px rgba(0,0,0,0.2), 0 0 25px rgba(255,215,0,0.7); }
+  }
+
+  /* 偷菜标记 */
+  .steal-badge {
+    position:absolute; top:4px; left:6px;
+    font-size:14px; z-index:3;
+    animation: stealBounce 0.5s ease-out;
+  }
+  @keyframes stealBounce {
+    0% { transform: scale(0) rotate(-30deg); opacity:0; }
+    60% { transform: scale(1.3) rotate(5deg); }
+    100% { transform: scale(1) rotate(0); opacity:1; }
+  }
+
+  /* === 底部操作栏 === */
+  .bottom-sheet {
+    position:fixed; bottom:0; left:0; right:0; z-index:20;
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 20px 20px 0 0;
+    padding:16px;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+  }
+  .action-buttons {
+    display:flex; gap:10px;
+    justify-content:center;
+    flex-wrap:wrap;
+  }
+  .action-btn {
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:12px 16px; border-radius:16px; border:none;
+    cursor:pointer; font-size:13px; font-weight:600;
+    transition: all 0.2s;
+    min-width:70px;
+  }
+  .action-btn:active { transform: scale(0.92); }
+  .action-btn .btn-icon { font-size:28px; }
+  .action-btn.plant { background:#E8F5E9; color:#2E7D32; }
+  .action-btn.water { background:#E3F2FD; color:#1565C0; }
+  .action-btn.harvest { background:#FFF3E0; color:#E65100; }
+  .action-btn.steal { background:#FCE4EC; color:#C62828; }
+  .action-btn.remind { background:#F3E5F5; color:#6A1B9A; }
+
+  /* === 弹窗 === */
+  .modal-overlay {
+    position:fixed; inset:0; z-index:100;
+    background: rgba(0,0,0,0.5);
+    display:flex; align-items:center; justify-content:center;
+    animation: fadeIn 0.2s;
+  }
+  @keyframes fadeIn {
+    from { opacity:0; }
+  }
+  .modal {
+    background:#fff; border-radius:20px;
+    padding:24px; width:90%; max-width:360px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: modalUp 0.3s ease-out;
+  }
+  @keyframes modalUp {
+    from { transform: translateY(40px); opacity:0; }
+  }
+  .modal h3 {
+    text-align:center; font-size:20px; margin-bottom:16px;
+  }
+  .modal-close {
+    position:absolute; top:12px; right:16px;
+    background:none; border:none; font-size:24px;
+    cursor:pointer; color:#999;
+  }
+
+  /* 种子选择 */
+  .seed-list {
+    display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  }
+  .seed-card {
+    padding:16px; border-radius:14px;
+    border:2px solid #eee; cursor:pointer;
+    text-align:center;
+    transition: all 0.2s;
+    background:#fafafa;
+  }
+  .seed-card:hover, .seed-card:active {
+    border-color:#4CAF50; background:#f0fff0;
+  }
+  .seed-card .seed-emoji { font-size:40px; display:block; }
+  .seed-card .seed-name { font-weight:700; margin:6px 0 2px; }
+  .seed-card .seed-info { font-size:12px; color:#888; }
+
+  /* 朋友列表 */
+  .friend-list {
+    max-height: 60vh; overflow-y:auto;
+  }
+  .friend-card {
+    display:flex; align-items:center; gap:12px;
+    padding:14px; border-radius:14px;
+    margin-bottom:8px; cursor:pointer;
+    background:#fafafa; border:2px solid transparent;
+    transition: all 0.2s;
+  }
+  .friend-card:hover, .friend-card:active { border-color:#FF6B8A; background:#fff5f5; }
+  .friend-avatar {
+    width:44px; height:44px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:24px;
+  }
+  .friend-info { flex:1; }
+  .friend-name { font-weight:700; font-size:15px; }
+  .friend-status { font-size:12px; color:#888; }
+  .friend-action {
+    padding:6px 14px; border-radius:14px;
+    border:none; font-size:13px; font-weight:600;
+    cursor:pointer;
+  }
+  .friend-action.steal-btn { background:#FCE4EC; color:#C62828; }
+  .friend-action.remind-btn { background:#F3E5F5; color:#6A1B9A; }
+
+  /* Toast */
+  .toast {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    background:rgba(0,0,0,0.85); color:#fff;
+    padding:14px 28px; border-radius:30px;
+    font-size:16px; font-weight:600;
+    z-index:200;
+    pointer-events:none;
+    animation: toastPop 2s ease-out forwards;
+    white-space:nowrap;
+  }
+  @keyframes toastPop {
+    0% { opacity:0; transform:translate(-50%,-50%) scale(0.7); }
+    15% { opacity:1; transform:translate(-50%,-50%) scale(1.05); }
+    25% { transform:translate(-50%,-50%) scale(1); }
+    80% { opacity:1; }
+    100% { opacity:0; transform:translate(-50%,-60%); }
+  }
+
+  /* 飘出金币 */
+  .float-coin {
+    position:fixed; pointer-events:none; z-index:150;
+    font-size:24px; font-weight:700;
+    animation: floatUp 1.2s ease-out forwards;
+  }
+  @keyframes floatUp {
+    0% { opacity:1; transform:translateY(0) scale(1); }
+    100% { opacity:0; transform:translateY(-80px) scale(1.5); }
+  }
+
+  /* 浇水水滴 */
+  .water-drop {
+    position:fixed; pointer-events:none; z-index:150;
+    font-size:20px;
+    animation: waterFall 1s ease-in forwards;
+  }
+  @keyframes waterFall {
+    0% { opacity:1; transform:translateY(-20px) scale(0.5); }
+    30% { opacity:1; transform:translateY(0) scale(1.2); }
+    100% { opacity:0; transform:translateY(20px) scale(0.8); }
+  }
+
+  /* 响应式 */
+  @media (min-width: 500px) {
+    .farm-grid { grid-template-columns: repeat(3, 1fr); max-width:420px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 天空 -->
+<div class="sky-layer">
+  <div class="sun">☀️</div>
+  <div class="cloud">☁️</div>
+  <div class="cloud">☁️</div>
+  <div class="cloud">⛅</div>
+</div>
+
+<!-- 顶部栏 -->
+<div class="top-bar">
+  <div class="user-info">
+    <div class="avatar">👩‍🌾</div>
+    <div>
+      <div style="font-weight:700;font-size:15px;">我的农场</div>
+      <div style="font-size:11px;color:#888;">Lv.<span id="level">1</span> · <span id="exp">0</span>/100 exp</div>
+    </div>
+  </div>
+  <div class="resources">
+    <div class="resource-item"><span class="icon">🪙</span><span id="gold">200</span></div>
+    <div class="resource-item"><span class="icon">💧</span><span id="water">10</span></div>
+  </div>
+</div>
+
+<!-- 标签切换 -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('myFarm')">🏡 我的菜园</button>
+  <button class="tab-btn" onclick="switchTab('friends')">👥 好友菜园</button>
+</div>
+
+<!-- 农场 -->
+<div class="farm-container" id="farmContainer">
+  <div class="farm-grid" id="farmGrid"></div>
+</div>
+
+<!-- 底部操作栏 -->
+<div class="bottom-sheet" id="bottomSheet">
+  <div class="action-buttons">
+    <button class="action-btn plant" onclick="openSeedModal()">
+      <span class="btn-icon">🌱</span> 播种
+    </button>
+    <button class="action-btn water" onclick="waterPlot()">
+      <span class="btn-icon">💧</span> 浇水
+    </button>
+    <button class="action-btn harvest" onclick="harvestPlot()">
+      <span class="btn-icon">🧺</span> 收获
+    </button>
+    <button class="action-btn steal" onclick="switchTab('friends')">
+      <span class="btn-icon">🥷</span> 偷菜
+    </button>
+    <button class="action-btn remind" onclick="remindFriend()">
+      <span class="btn-icon">📢</span> 催浇水
+    </button>
+  </div>
+  <div style="text-align:center;margin-top:8px;font-size:12px;color:#999;" id="hintText">
+    点击空地播种，点击已成熟作物收获 🥕
+  </div>
+</div>
+
+<!-- 弹窗容器 -->
+<div id="modalContainer"></div>
+
+<script>
+// ========== 游戏数据 ==========
+const CROPS = {
+  carrot:  { name:'胡萝卜', emoji:'🥕', seedEmoji:'🌱', growTime:30,   waterBonus:5,  price:30,  exp:15, cost:10 },
+  tomato:  { name:'西红柿', emoji:'🍅', seedEmoji:'🌱', growTime:60,   waterBonus:8,  price:50,  exp:25, cost:20 },
+  corn:    { name:'玉米',   emoji:'🌽', seedEmoji:'🌱', growTime:120,  waterBonus:10, price:80,  exp:40, cost:35 },
+  pumpkin: { name:'南瓜',   emoji:'🎃', seedEmoji:'🌱', growTime:240,  waterBonus:15, price:150, exp:60, cost:60 },
+  rose:    { name:'玫瑰',   emoji:'🌹', seedEmoji:'🌱', growTime:180,  waterBonus:12, price:200, exp:80, cost:80 },
+  grape:   { name:'葡萄',   emoji:'🍇', seedEmoji:'🌱', growTime:360,  waterBonus:20, price:300, exp:120,cost:120 },
+};
+
+const GROWTH_STAGES = ['🌱','🌿','🌳'];
+
+// 好友数据 (模拟)
+const FRIENDS = [
+  { id:'f1', name:'小花',    avatar:'🌸', color:'#FFE0E0', plots:6, stealChance:0.3 },
+  { id:'f2', name:'阿强',    avatar:'💪', color:'#E0F0FF', plots:6, stealChance:0.25 },
+  { id:'f3', name:'老王',    avatar:'🧓', color:'#FFF0E0', plots:6, stealChance:0.2 },
+  { id:'f4', name:'小美',    avatar:'💃', color:'#F0E0FF', plots:6, stealChance:0.35 },
+  { id:'f5', name:'大壮',    avatar:'🏋️', color:'#E0FFE0', plots:6, stealChance:0.15 },
+  { id:'f6', name:'翠花',    avatar:'🌻', color:'#FFFDE0', plots:6, stealChance:0.4 },
+];
+
+// ========== 游戏状态 ==========
+let gameState = {
+  gold: 200,
+  water: 10,
+  level: 1,
+  exp: 0,
+  plots: [],        // { cropKey, plantedAt, stage, watered, harvested }
+  selectedPlot: null,
+  currentTab: 'myFarm',
+};
+
+// 初始化 6 块地
+function initPlots() {
+  gameState.plots = [];
+  for (let i = 0; i < 6; i++) {
+    gameState.plots.push({
+      cropKey: null,
+      plantedAt: null,
+      stage: 0,         // 0=种子, 1=幼苗, 2=成长, 3=成熟
+      watered: false,
+      wateredAt: null,
+      harvested: false,
+    });
+  }
+  // 预种一些东西让游戏有趣
+  const now = Date.now();
+  gameState.plots[0].cropKey = 'carrot';
+  gameState.plots[0].plantedAt = now - 20000; // 快熟了
+  gameState.plots[0].stage = getGrowthStage('carrot', now - 20000);
+
+  gameState.plots[1].cropKey = 'tomato';
+  gameState.plots[1].plantedAt = now - 30000;
+  gameState.plots[1].stage = getGrowthStage('tomato', now - 30000);
+}
+
+function getGrowthStage(cropKey, elapsed) {
+  const crop = CROPS[cropKey];
+  if (!crop) return 0;
+  const totalMs = crop.growTime * 1000;
+  if (elapsed >= totalMs) return 3; // 成熟
+  if (elapsed >= totalMs * 0.66) return 2;
+  if (elapsed >= totalMs * 0.33) return 1;
+  return 0;
+}
+
+function getRemainingTime(plot) {
+  if (!plot.cropKey || plot.stage >= 3) return 0;
+  const crop = CROPS[plot.cropKey];
+  const elapsed = Date.now() - plot.plantedAt;
+  const total = crop.growTime * 1000;
+  // 浇水加速 20%
+  const effectiveTotal = plot.watered ? total * 0.8 : total;
+  return Math.max(0, effectiveTotal - elapsed);
+}
+
+function formatTime(ms) {
+  if (ms <= 0) return '成熟!';
+  const s = Math.ceil(ms / 1000);
+  if (s < 60) return s + '秒';
+  const m = Math.floor(s / 60);
+  const rs = s % 60;
+  return m + '分' + (rs > 0 ? rs + '秒' : '');
+}
+
+// ========== 渲染 ==========
+function renderFarm() {
+  const grid = document.getElementById('farmGrid');
+  grid.innerHTML = '';
+
+  gameState.plots.forEach((plot, idx) => {
+    const div = document.createElement('div');
+    div.className = 'plot';
+    div.onclick = (e) => onPlotClick(idx, e);
+
+    if (!plot.cropKey) {
+      div.classList.add('empty');
+      div.innerHTML = `
+        <div class="plot-emoji" style="font-size:28px;">🟫</div>
+        <div class="plot-label">空地</div>
+      `;
+    } else {
+      const crop = CROPS[plot.cropKey];
+      const elapsed = Date.now() - plot.plantedAt;
+      const stage = getGrowthStage(plot.cropKey, elapsed);
+      plot.stage = stage; // 实时更新
+
+      if (stage >= 3) {
+        // 成熟
+        div.classList.add('ripe');
+        div.innerHTML = `
+          <div class="plot-emoji">${crop.emoji}</div>
+          <div class="plot-label" style="color:#FFD700;">成熟!</div>
+        `;
+      } else {
+        // 成长中
+        const stageEmoji = GROWTH_STAGES[Math.min(stage, 2)];
+        const remaining = getRemainingTime(plot);
+        div.innerHTML = `
+          <div class="plot-emoji">${stageEmoji}</div>
+          <div class="plot-label">${crop.name}</div>
+          <div class="plot-timer">⏳ ${formatTime(remaining)}</div>
+        `;
+
+        // 进度条
+        const totalMs = crop.growTime * 1000;
+        const effTotal = plot.watered ? totalMs * 0.8 : totalMs;
+        const progress = Math.min(100, (elapsed / effTotal) * 100);
+        div.innerHTML += `
+          <div class="plot-progress">
+            <div class="plot-progress-bar" style="width:${progress}%"></div>
+          </div>
+        `;
+      }
+
+      if (plot.watered) {
+        div.classList.add('watered');
+      }
+
+      // 选中高亮
+      if (gameState.selectedPlot === idx) {
+        div.style.outline = '3px solid #FF6B8A';
+        div.style.outlineOffset = '2px';
+      }
+    }
+
+    grid.appendChild(div);
+  });
+}
+
+function onPlotClick(idx, event) {
+  const plot = gameState.plots[idx];
+
+  if (gameState.selectedPlot === idx) {
+    gameState.selectedPlot = null;
+    renderFarm();
+    updateHint();
+    return;
+  }
+
+  gameState.selectedPlot = idx;
+  renderFarm();
+  updateHint();
+
+  // 自动弹出操作
+  if (!plot.cropKey) {
+    // 空地 -> 播种
+    setTimeout(() => openSeedModal(), 200);
+  } else if (plot.stage >= 3) {
+    // 成熟 -> 收获
+    setTimeout(() => harvestPlot(), 200);
+  }
+}
+
+function updateHint() {
+  const hint = document.getElementById('hintText');
+  if (gameState.selectedPlot !== null) {
+    const plot = gameState.plots[gameState.selectedPlot];
+    if (!plot.cropKey) hint.textContent = '💡 选中的空地 — 点击"播种"种下种子吧';
+    else if (plot.stage >= 3) hint.textContent = '🧺 作物成熟了！点击"收获"采摘吧';
+    else hint.textContent = '💧 作物正在生长中，浇水可以加速哦';
+  } else {
+    hint.textContent = '👆 点击一块地来选中它，然后使用下方按钮操作';
+  }
+}
+
+function switchTab(tab) {
+  gameState.currentTab = tab;
+  gameState.selectedPlot = null;
+
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  if (tab === 'myFarm') {
+    document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+    document.getElementById('farmGrid').style.display = 'grid';
+    document.getElementById('bottomSheet').style.display = 'block';
+    document.getElementById('farmContainer').style.paddingBottom = '120px';
+    document.getElementById('modalContainer').innerHTML = '';
+    renderFarm();
+    updateHint();
+  } else if (tab === 'friends') {
+    document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+    document.getElementById('bottomSheet').style.display = 'none';
+    document.getElementById('farmContainer').style.paddingBottom = '20px';
+    renderFriendList();
+  }
+}
+
+// ========== 好友系统 ==========
+function generateFriendPlots(friend) {
+  const plots = [];
+  const now = Date.now();
+  const cropKeys = Object.keys(CROPS);
+
+  for (let i = 0; i < friend.plots; i++) {
+    const hasCrop = Math.random() > 0.25;
+    if (hasCrop) {
+      const cropKey = cropKeys[Math.floor(Math.random() * cropKeys.length)];
+      const crop = CROPS[cropKey];
+      const plantedAgo = Math.random() * crop.growTime * 1000 * 2;
+      const stage = getGrowthStage(cropKey, now - plantedAgo);
+      plots.push({
+        cropKey,
+        stage,
+        plantedAt: now - plantedAgo,
+        watered: Math.random() > 0.5,
+        harvested: false,
+      });
+    } else {
+      plots.push({ cropKey: null, stage: 0, plantedAt: null, watered: false, harvested: false });
+    }
+  }
+  return plots;
+}
+
+function renderFriendList() {
+  const grid = document.getElementById('farmGrid');
+  grid.style.display = 'block';
+
+  let html = '<div class="friend-list">';
+  html += '<div style="text-align:center;margin-bottom:16px;color:#666;font-size:14px;">👥 去好友的菜园逛逛吧~</div>';
+
+  FRIENDS.forEach((friend, fi) => {
+    const plots = generateFriendPlots(friend);
+    const ripeCount = plots.filter(p => p.stage >= 3).length;
+    const needWater = plots.filter(p => p.cropKey && p.stage < 3 && !p.watered).length;
+
+    html += `
+    <div class="friend-card" id="friend-${fi}">
+      <div class="friend-avatar" style="background:${friend.color};">${friend.avatar}</div>
+      <div class="friend-info">
+        <div class="friend-name">${friend.name} 的菜园</div>
+        <div class="friend-status">
+          ${ripeCount > 0 ? `🍎 ${ripeCount}块地成熟可偷! ` : ''}
+          ${needWater > 0 ? `💧 ${needWater}块地需要浇水` : '✨ 打理得很好'}
+        </div>
+      </div>
+      <button class="friend-action steal-btn" onclick="event.stopPropagation();stealFromFriend(${fi})"
+        ${ripeCount === 0 ? 'disabled style="opacity:0.5"' : ''}>
+        🥷 偷菜
+      </button>
+    </div>`;
+
+    // 展开好友的菜园
+    html += `<div id="friend-farm-${fi}" style="display:none;margin-bottom:12px;">`;
+    html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">';
+    plots.forEach((plot, pi) => {
+      if (!plot.cropKey) {
+        html += `<div style="aspect-ratio:1;background:linear-gradient(180deg,#C49A3C,#8B6914);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;">🟫</div>`;
+      } else if (plot.stage >= 3) {
+        html += `<div style="aspect-ratio:1;background:linear-gradient(180deg,#C49A3C,#8B6914);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:36px;animation:ripeGlow 1s infinite;">${CROPS[plot.cropKey].emoji}</div>`;
+      } else {
+        html += `<div style="aspect-ratio:1;background:linear-gradient(180deg,#C49A3C,#8B6914);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;">${GROWTH_STAGES[Math.min(plot.stage,2)]}</div>`;
+      }
+    });
+    html += '</div></div>';
+
+    // 点击展开
+    html += `
+    <script>
+      (function(){
+        var card = document.getElementById('friend-${fi}');
+        var farm = document.getElementById('friend-farm-${fi}');
+        var expanded = false;
+        card.addEventListener('click', function(e){
+          if (e.target.tagName === 'BUTTON') return;
+          expanded = !expanded;
+          farm.style.display = expanded ? 'block' : 'none';
+        });
+      })();
+    </script>`;
+  });
+
+  html += '</div>';
+  grid.innerHTML = html;
+  updateHint();
+}
+
+// ========== 操作 ==========
+function openSeedModal() {
+  if (gameState.selectedPlot === null) {
+    showToast('请先点击一块空地 👆');
+    return;
+  }
+  const plot = gameState.plots[gameState.selectedPlot];
+  if (plot.cropKey) {
+    showToast('这块地已经种了东西哦~');
+    return;
+  }
+
+  let html = '<div class="modal-overlay" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()">';
+  html += '<h3>🌱 选择种子</h3>';
+  html += '<div class="seed-list">';
+
+  Object.entries(CROPS).forEach(([key, crop]) => {
+    const canAfford = gameState.gold >= crop.cost;
+    html += `
+    <div class="seed-card" onclick="plantSeed('${key}')" style="${!canAfford ? 'opacity:0.5;pointer-events:none;' : ''}">
+      <span class="seed-emoji">${crop.emoji}</span>
+      <span class="seed-name">${crop.name}</span>
+      <span class="seed-info">💰${crop.cost} · ⏱${crop.growTime}秒</span>
+      <span class="seed-info">卖出${crop.price}💰 · ${crop.exp}exp</span>
+    </div>`;
+  });
+
+  html += '</div>';
+  html += '<div style="text-align:center;margin-top:12px;"><button onclick="closeModal()" style="padding:10px 30px;border-radius:20px;border:none;background:#eee;font-size:14px;cursor:pointer;">取消</button></div>';
+  html += '</div></div>';
+
+  document.getElementById('modalContainer').innerHTML = html;
+}
+
+function plantSeed(cropKey) {
+  const crop = CROPS[cropKey];
+  if (gameState.gold < crop.cost) {
+    showToast('金币不够啦 💰');
+    return;
+  }
+
+  const idx = gameState.selectedPlot;
+  const plot = gameState.plots[idx];
+
+  gameState.gold -= crop.cost;
+  plot.cropKey = cropKey;
+  plot.plantedAt = Date.now();
+  plot.stage = 0;
+  plot.watered = false;
+  plot.harvested = false;
+
+  // 种植动画
+  spawnFloatingEmoji('🌱', '种下' + crop.name + '!');
+
+  closeModal();
+  renderFarm();
+  updateUI();
+  updateHint();
+
+  showToast(`种下了 ${crop.emoji} ${crop.name}！`);
+}
+
+function waterPlot() {
+  if (gameState.selectedPlot === null) {
+    showToast('请先点击一块地 💧');
+    return;
+  }
+  if (gameState.water <= 0) {
+    showToast('水滴不够了！去好友那里"借"点吧 😏');
+    return;
+  }
+
+  const plot = gameState.plots[gameState.selectedPlot];
+  if (!plot.cropKey) {
+    showToast('空地不用浇水啦~');
+    return;
+  }
+  if (plot.stage >= 3) {
+    showToast('已经成熟了，快收获吧！');
+    return;
+  }
+  if (plot.watered) {
+    showToast('已经浇过水了~');
+    return;
+  }
+
+  gameState.water--;
+  plot.watered = true;
+  plot.wateredAt = Date.now();
+
+  // 浇水动画
+  spawnWaterDrop();
+
+  renderFarm();
+  updateUI();
+  updateHint();
+  showToast('💧 浇水成功！生长加速20%');
+}
+
+function harvestPlot() {
+  if (gameState.selectedPlot === null) {
+    showToast('请先点击一块成熟的作物 🧺');
+    return;
+  }
+
+  const idx = gameState.selectedPlot;
+  const plot = gameState.plots[idx];
+
+  if (!plot.cropKey) {
+    showToast('这里没有种东西~');
+    return;
+  }
+  if (plot.stage < 3) {
+    const remaining = getRemainingTime(plot);
+    showToast(`还没熟呢，还要等 ${formatTime(remaining)} ⏳`);
+    return;
+  }
+
+  const crop = CROPS[plot.cropKey];
+  gameState.gold += crop.price;
+  gameState.exp += crop.exp;
+
+  // 升级检测
+  checkLevelUp();
+
+  // 收获动画
+  spawnFloatingCoin('+💰' + crop.price, event);
+
+  // 清空地
+  gameState.plots[idx] = {
+    cropKey: null,
+    plantedAt: null,
+    stage: 0,
+    watered: false,
+    wateredAt: null,
+    harvested: false,
+  };
+
+  gameState.selectedPlot = null;
+  renderFarm();
+  updateUI();
+  updateHint();
+  showToast(`🧺 收获了 ${crop.emoji} ${crop.name}！+${crop.price}💰 +${crop.exp}exp`);
+}
+
+// ========== 偷菜 ==========
+function stealFromFriend(friendIdx) {
+  const friend = FRIENDS[friendIdx];
+  const plots = generateFriendPlots(friend);
+  const ripePlots = plots
+    .map((p, i) => ({ ...p, idx: i }))
+    .filter(p => p.stage >= 3);
+
+  if (ripePlots.length === 0) {
+    showToast(`${friend.name}的菜园没有成熟的作物~`);
+    return;
+  }
+
+  // 随机偷一个
+  const target = ripePlots[Math.floor(Math.random() * ripePlots.length)];
+  const crop = CROPS[target.cropKey];
+  const stealAmount = Math.floor(crop.price * 0.3); // 偷30%价值
+
+  if (Math.random() > friend.stealChance) {
+    gameState.gold += stealAmount;
+    spawnFloatingEmoji('🥷', '偷到' + crop.emoji + ' +' + stealAmount + '💰');
+    updateUI();
+    showToast(`🥷 从${friend.name}的菜园偷到了 ${crop.emoji}！+${stealAmount}💰`);
+  } else {
+    showToast(`😱 被${friend.name}发现了！偷菜失败...`);
+    spawnFloatingEmoji('😱', '被发现了!');
+  }
+}
+
+// ========== 催浇水 ==========
+function remindFriend() {
+  let html = '<div class="modal-overlay" onclick="closeModal()"><div class="modal" onclick="event.stopPropagation()">';
+  html += '<h3>📢 提醒好友浇水</h3>';
+  html += '<div style="text-align:center;color:#666;margin-bottom:12px;">选择要提醒的好友：</div>';
+  html += '<div class="friend-list" style="max-height:40vh;">';
+
+  FRIENDS.forEach((friend, fi) => {
+    html += `
+    <div class="friend-card" onclick="sendReminder(${fi})">
+      <div class="friend-avatar" style="background:${friend.color};">${friend.avatar}</div>
+      <div class="friend-info">
+        <div class="friend-name">${friend.name}</div>
+        <div class="friend-status">发送浇水提醒 🔔</div>
+      </div>
+      <button class="friend-action remind-btn">📢 提醒</button>
+    </div>`;
+  });
+
+  html += '</div>';
+  html += '<div style="text-align:center;margin-top:12px;"><button onclick="closeModal()" style="padding:10px 30px;border-radius:20px;border:none;background:#eee;font-size:14px;cursor:pointer;">取消</button></div>';
+  html += '</div></div>';
+
+  document.getElementById('modalContainer').innerHTML = html;
+}
+
+function sendReminder(friendIdx) {
+  const friend = FRIENDS[friendIdx];
+  closeModal();
+
+  // 模拟生成分享文案
+  const messages = [
+    `🌾 ${friend.name}！你的菜园需要浇水啦~快快去看看吧！`,
+    `💧 ${friend.name}，你的菜都快渴死了！赶紧去浇水！`,
+    `🌱 滴滴——${friend.name}的菜园干旱警报！速去浇水！`,
+    `📢 农场小助手提醒：${friend.name}的作物需要关爱~`,
+    `😤 ${friend.name}！再不去浇水你的菜就要被别人偷光了！`,
+  ];
+  const msg = messages[Math.floor(Math.random() * messages.length)];
+
+  // 复制到剪贴板 + 显示
+  copyToClipboard(msg);
+  showToast('📋 提醒文案已复制！发给好友吧~');
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text);
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+}
+
+// ========== UI 辅助 ==========
+function updateUI() {
+  document.getElementById('gold').textContent = gameState.gold;
+  document.getElementById('water').textContent = gameState.water;
+  document.getElementById('level').textContent = gameState.level;
+  document.getElementById('exp').textContent = gameState.exp;
+}
+
+function checkLevelUp() {
+  const expNeeded = gameState.level * 100;
+  if (gameState.exp >= expNeeded) {
+    gameState.exp -= expNeeded;
+    gameState.level++;
+    gameState.water += 5;
+    gameState.gold += 50;
+    showToast(`🎉 升级了！Lv.${gameState.level}！获得5💧 + 50💰`);
+    updateUI();
+  }
+}
+
+function closeModal() {
+  document.getElementById('modalContainer').innerHTML = '';
+}
+
+function showToast(msg) {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+
+  setTimeout(() => toast.remove(), 2000);
+}
+
+function spawnFloatingCoin(text, clickEvent) {
+  const el = document.createElement('div');
+  el.className = 'float-coin';
+  el.textContent = text;
+
+  if (clickEvent) {
+    el.style.left = clickEvent.clientX + 'px';
+    el.style.top = clickEvent.clientY + 'px';
+  } else {
+    el.style.left = '50%';
+    el.style.top = '40%';
+  }
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+}
+
+function spawnFloatingEmoji(emoji, text) {
+  const el = document.createElement('div');
+  el.className = 'float-coin';
+  el.textContent = emoji + ' ' + text;
+  el.style.left = '50%';
+  el.style.top = '45%';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+}
+
+function spawnWaterDrop() {
+  const el = document.createElement('div');
+  el.className = 'water-drop';
+  el.textContent = '💧';
+  el.style.left = (30 + Math.random() * 40) + '%';
+  el.style.top = '40%';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1000);
+}
+
+// ========== 定时更新 ==========
+setInterval(() => {
+  if (gameState.currentTab === 'myFarm') {
+    renderFarm();
+  }
+}, 3000); // 每3秒刷新一次时间显示
+
+// ========== 初始化 ==========
+function init() {
+  initPlots();
+  renderFarm();
+  updateUI();
+  updateHint();
+}
+
+init();
+console.log('🌾 快乐农场已就绪！');
+console.log('功能：种菜 | 浇水 | 收获 | 偷好友菜 | 催好友浇水');
+console.log('分享给闺蜜一起玩吧~ 💕');
+</script>
+</body>
+</html>
